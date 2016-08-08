@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+{{include 'web2py_ajax.html'}}
+{{#extend 'layout.html'}}
+
+<html>
+  <head>
+   <title>Sierra Mapper</title>
+   <link rel="shortcut icon" href="{{=URL('static','images/favicon.png')}}">
+   <link rel="apple-touch-icon" href="{{=URL('static','images/favicon.png')}}">
+  <meta name="application-name" content="{{=request.application}}" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <script src="{{=URL('static','js/modernizr.custom.js')}}"></script>
+        {{
+  response.files.insert(0,URL('static','css/web2py.css'))
+  response.files.insert(1,URL('static','css/bootstrap.min.css'))
+  response.files.insert(2,URL('static','css/bootstrap-responsive.min.css'))
+  response.files.insert(3,URL('static','css/web2py_bootstrap.css'))
+  }}
+
+  {{include 'web2py_ajax.html'}}
+
+  {{
+  # using sidebars need to know what sidebar you want to use
+  left_sidebar_enabled = globals().get('left_sidebar_enabled',False)
+  right_sidebar_enabled = globals().get('right_sidebar_enabled',False)
+  middle_columns = {0:'span12',1:'span9',2:'span6'}[
+    (left_sidebar_enabled and 1 or 0)+(right_sidebar_enabled and 1 or 0)]
+  }}
+     <noscript><link href="{{=URL('static', 'css/web2py_bootstrap_nojs.css')}}" rel="stylesheet" type="text/css" /></noscript>
+  {{block head}}{{end}}   
+    <style>
+     h1{font-family: Helvetica, serif;} 
+     p{font-family: Helvetica, serif;} 
+     body{font-family: Helvetica, serif;} 
+     td{text-align:center; vertical-align:center;}
+    .strokeme
+    {
+    color: #FFF;
+    text-shadow:
+    -1px -1px 0 #FFF,
+    1px -1px 0 #FFF,
+    -1px 1px 0 #FFF,
+    1px 1px 0 #FFF;  
+    }
+    .table-header {
+    font-size: 16px;
+    }
+    #map_canvas {
+    width: 100%;
+    height: 100%;
+    margin:0 auto 0 auto;
+    padding:0px;
+    border:0px solid #cccccc;
+      }
+    #container {
+    width: 100%;
+    height: 96%;
+    position: absolute;
+    margin:0 auto 0 auto;
+    padding:0px;
+    border:0px solid #cccccc;
+    }
+
+    #dataTable {
+    width: 300px;
+    position: absolute;
+    top: 155px;
+    right: 0.5%;
+    color: black;
+    font-size: 12px;
+    z-index: 10;
+    background: white;
+    opacity: 0.8;
+    border-style:solid;
+    border-width:1px;
+    border-opacity: 0.8;
+    }
+    #dataTableHeader {
+    width: 300px;
+    position: absolute;
+    top: 125px;
+    right: 0.5%;
+    color: black;
+    font-size: 16px;
+    z-index: 10;
+    background: white;
+    opacity: 0.8;
+    border-style:solid;
+    border-width:1px;
+    border-opacity: 0.8;
+    }
+    
+       
+    #buttons {
+    width: 175px;
+    position: absolute;
+    bottom: 1%;
+    left: 1%;
+    color: black;
+    font-size: 16px;
+    z-index: 10;
+    }
+    
+    #legend {
+    width: 300px;
+    position: absolute;
+    top: 0px;
+    right: 0.5%;
+    color: black;
+    font-size: 12px;
+    z-index: 10;
+    background: white;
+    opacity: 0.8;
+    border-style:solid;
+    border-width:1px;
+    border-opacity: 0.8;
+    }
+    
+    
+    #nodesHeader {
+    width: 301px;
+    position: absolute;
+    top: 52px;
+    left: 10px;
+    color: #222;
+    font-size: 16px;
+    z-index: 10;
+    background: white;
+    opacity: 0.8;
+    border-color:white;
+    border-style:solid;
+    border-width:.5px;
+    border-opacity: 0.8;
+    padding: 4px 4px 4px 4px;
+    }
+    
+    #nodes {
+    width: 200px;
+    position: absolute;
+    top: 52px;
+    left: 75px;
+    color: black;
+    font-size: 16px;
+    z-index: 10;
+    background: white;
+    opacity: 0.8;
+    border-style:solid;
+    border-width:1px;
+    border-opacity: 0.8;
+    }
+    #suggestions { 
+    position: relative;
+    top: 82px;
+    left: 7px; 
+    }
+    .suggestions { background: white; opacity: 0.8; border: solid 1px #55A6C8; }
+    .suggestions DIV { padding: 2px 4px 2px 4px; }
+    
+    #gobutton {
+    width: 50px;
+    position: absolute;
+    top: 52px;
+    left: 292px;
+    color: black;
+    font-size: 16px;
+    z-index: 10;
+    }
+    
+    #hiddenReturn { 
+    position: absolute;
+    top: 100px;
+    left: 200px; 
+    width: 400px;
+    height: 100px;
+    display: none;
+    }
+    .hiddenReturn { background: white; border: solid 1px #55A6C8; }
+    .hiddenReturn DIV { padding: 2px 4px 2px 4px; }
+
+
+    </style>
+    <script src="https://maps.googleapis.com/maps/api/js?sensor=false&libraries=geometry"></script>
+    <script type="text/javascript" src="maplabel-compiled.js"></script>
+    <script src="jquery-csv.js"></script>
+    <script src="{{=URL('static','js/jquery.js')}}"></script>     
+    <script>
+        
+     var map;
+     var src = 'https://sites.google.com/site/sierrakml/test/edges_display1.kml'
+     var src2 = 'https://sites.google.com/site/sierrakml/test/edges_display2.kml'
+     var src3 = 'https://sites.google.com/site/sierrakml/test/edges_display3.kml'
+     var src4 = 'https://sites.google.com/site/sierrakml/test/yose_ep_bnd4.kml'
+     var src5 = 'https://sites.google.com/site/sierrakml/test/SEKI_bnd1.kml'
+     var src6 = 'https://sites.google.com/site/sierrakml/test/SEKI_bnd2.kml'
+     
+//manually enter all the trailheads
+     //alert("There's a bit of an update going on now, so things may be a little... quirky.\nHang in there, it will hopefully be done within minutes!\n\n   xoxo,\n\n      Adam")
+
+     //alert('Sorry - Sierra Mapper is currently butting heads with the Google Maps API, and as a result, is currently unusable!\n\nHopefully, things will be up and running soon!')
+var trailheads = ['n001','n033','n036','n044','n052','n060','n077','n148','n149','n154','n164','n190','n195','n200','n201','n278','n286','n298','n346', 'n347', 'n361','n375','n379','n395','n396','n415','n417','n423','n429'];  
+trailheads.push('m001','m010','m019','m045','m057','m069','m075','m082','m084','m086','m090','m092','m105','m106','m121','m131','m143','m178','m203','m224','m227')
+trailheads.push('k093','k119','k148')
+trailheads.push('r065','r077','r083','r096','r149','r184','r185','r198','r213','r215','r217','r234')
+trailheads.push('s052')
+trailheads.push('l001','l066')
+trailheads.push('t001','t029','t032')
+
+var nodeMarkerList = {{=XML(response.json(nodeMarkers))}};
+nodeMarkerList = nodeMarkerList.split("[").join("")
+nodeMarkerList = nodeMarkerList.split("]").join("")
+nodeMarkerList = nodeMarkerList.split("'").join("")
+nodeMarkerList = nodeMarkerList.split('"').join("")
+nodeMarkerList = nodeMarkerList.split(",")
+
+/**
+ * Initializes the map and calls the function that creates polylines.
+ */
+var nodeList = [];           
+                   
+function initialize() {
+  var styles = [ { "featureType": "water", "elementType": "geometry.fill", "stylers": [ { "saturation": 44 }, { "gamma": 1.04 }, { "weight": 0.3 }, { "visibility": "on" } ] },{ "featureType": "water", "elementType": "labels.text.fill", "stylers": [ { "weight": 4.8 }, { "visibility": "on" }, { "lightness": 100 }, { "color": "#0040b7" } ] },{ "featureType": "landscape.natural.landcover", "elementType": "geometry.fill", "stylers": [ { "weight": 0.1 }, { "lightness": 14 }, { "saturation": -63 } ] },{ "featureType": "landscape", "elementType": "geometry.fill", "stylers": [ { "saturation": -65 }, { "lightness": 27 } ] }, { "featureType": "poi", "elementType": "geometry.fill", "stylers": [ { "saturation": -79 } ] } ];
+  
+	var mapTypeIds = [];
+  for(var type in google.maps.MapTypeId) {
+      mapTypeIds.push(google.maps.MapTypeId[type]);
+  }
+  mapTypeIds.push("CTQ");
+  mapTypeIds.push("CTSR");
+  mapTypeIds.push("OSM_Mapquest");
+  map = new google.maps.Map(document.getElementById('map_canvas'), {
+    center: new google.maps.LatLng(37.73256, -119.55851),
+    zoom: 8,
+    mapTypeControlOptions: {
+       mapTypeIds: mapTypeIds
+       },
+    mapTypeId: "CTQ"
+  });
+  map.setOptions({styles: styles});
+  loadKmlLayer(src, map);
+  loadKmlLayer(src2, map);
+  loadKmlLayer(src3, map);
+  loadKmlLayer(src4, map);
+  loadKmlLayer(src5, map);
+  loadKmlLayer(src6, map);
+  addAllMarkers(map);
+  map.setZoom(13);
+  parseInput();
+    
+  map.mapTypes.set("CTQ", new google.maps.ImageMapType({
+    getTileUrl: function(coord, zoom) {       
+			return "http://s3-us-west-1.amazonaws.com/caltopo/topo/" + zoom + "/" + coord.x + "/" + coord.y + ".png";
+    },
+    tileSize: new google.maps.Size(256, 256),
+    name: "CalTopo USGS Quads",
+    maxZoom: 15
+	}));
+    
+  map.mapTypes.set("OSM_Mapquest", new google.maps.ImageMapType({
+    getTileUrl: function(coord, zoom) {
+        //return "http://tile.openstreetmap.org/" + zoom + "/" + coord.x + "/" + coord.y + ".png";
+return "http://otile1.mqcdn.com/tiles/1.0.0/osm/" + zoom + "/" + coord.x + "/" + coord.y + ".jpg";
+    },
+    tileSize: new google.maps.Size(256, 256),
+    name: "OSM/Mapquest",
+    maxZoom: 15
+  }));
+
+	var imageMapType = new google.maps.ImageMapType({
+    getTileUrl: function(coord, zoom) {
+
+      return "http://s3-us-west-1.amazonaws.com/ctrelief/relief/" + zoom + "/" + coord.x + "/" + coord.y + ".png";
+    },
+    tileSize: new google.maps.Size(256, 256),
+    opacity: 0.3
+	});
+  //map.overlayMapTypes[0].setOpacity(.25) 
+  map.overlayMapTypes.push(imageMapType);
+
+
+	// try to add polyline
+  var polyOptions = {
+    strokeColor: '#FF6600', //also maybe try FF6600
+    strokeOpacity: .7,
+    strokeWeight: 2
+  };
+  poly = new google.maps.Polyline(polyOptions);
+  poly.setMap(map);
+	
+} // done with initialize()
+
+var offTrail = 0 // whether currently off trail
+offTrailCounter = 0 //counter for number of times gone off-trail
+function goOffTrail() {
+  var polyOptions = {
+    strokeColor: '#FF6600', 
+    strokeOpacity: .7,
+    strokeWeight: 2
+  };
+	poly= new google.maps.Polyline(polyOptions);
+	poly.setMap(map)
+	var path = poly.getPath();
+	if (nodeList.length > 0) {
+		path.push(lastPos);
+	}
+	offTrailHandler = google.maps.event.addListener(map, 'click', addLatLng);
+	offTrail = 1
+  map.setOptions({draggableCursor:'crosshair'});
+	offTrailCounter++;
+	thisString = 'XC #' + (offTrailCounter).toString() + ' to '		
+	rowCount = document.getElementById('dataTable').rows.length	
+	addRow('dataTable', rowCount-1, thisString);
+	rowCount = rowCount + 1;	
+	thisHash = createToken();	
+	thisNode = 'x' + thisHash
+	nodeList.push(thisNode)	
+	polyArray.push(poly)  
+	//lert(offTrailCounter)
+	createHashFile(thisHash)
+	if (nodeList.length > 1) {
+		outStr = ('1' + '/' + thisHash + '/' + lastPos.toString())
+		updateHashFile(outStr)
+	} 
+	polyMarkersArray.push(new Array())	
+}
+
+function goOnTrail() {
+	google.maps.event.removeListener(offTrailHandler);
+	offTrail = 0
+	map.setOptions({draggableCursor:''});
+}
+
+//var poly
+var polyArray = new Array(); 
+var polyMarkersArray = new Array();
+
+function addLatLng(event) {
+
+  var path = poly.getPath();
+	if (nodeList.length == 1 && path.getLength() == 0) { //add a start marker
+		addMarker(map, event.latLng, 'placeholder')
+	}
+  path.push(event.latLng);
+	//alert(path.getArray()[path.getArray().length - 1])
+
+  //if (path.getLength() == 1) {offTrailCounter += 1; alert(offTrailCounter)}
+  var image = {
+    url: 'https://sites.google.com/site/sierrakml/test/XCnode_v6.png',
+    size: new google.maps.Size(8, 8),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(4, 4)
+  };
+  // Add a new marker at the new plotted point on the polyline.
+  var marker = new google.maps.Marker({
+    position: event.latLng,
+    title: '#' + path.getLength(),
+    icon: image,
+		clickable: false,
+    map: map
+  });
+	rowCount = document.getElementById('dataTable').rows.length
+  //if (path.getLength() + offTrailCounter <= 2) { //for the first off trail point
+
+	polyMarkersArray[offTrailCounter - 1].push(marker)
+  thisHash = nodeList[nodeList.length-1].substr(1,4)
+  outStr = path.getLength() + '/' + thisHash + '/' + path.getArray()[path.getArray().length - 1].toString()
+	updateHashFile(outStr)
+	
+	var polyLengthInMiles = 0.000621371*google.maps.geometry.spherical.computeLength(path);
+  
+	document.getElementById('dataTable').rows[rowCount-2].cells[3].innerHTML = polyLengthInMiles.toFixed(2).toString() + ' mi'	
+	//lert(polyLengthInMiles.toFixed(2).toString())
+	var thisSum = 0;
+	greaterThan = '';
+  for (var i = 1; i < document.getElementById('dataTable').rows.length - 1; i++) {
+    thisSum = thisSum + parseFloat(document.getElementById('dataTable').rows[i].cells[3].innerHTML.replace(/^&gt;/, ""))
+	document.getElementById('dataTable').rows[rowCount-1].cells[3].innerHTML = '<b>' + greaterThan + thisSum.toFixed(2).toString() + ' mi' + '</b>'  
+	}
+}
+function loadKmlLayer(src, map) {
+  var kmlLayer = new google.maps.KmlLayer(src, {
+    suppressInfoWindows: false,
+    preserveViewport: true,
+    map: map,
+    clickable: false
+  });
+}
+
+function contains(a, obj) {
+    for (var i = 0; i < a.length; i++) {
+        if (a[i] == obj) {
+            return true;
+        }
+    }
+    return false;
+}
+
+var lastPos //use to store the last position for when a polyline is started
+function createMarker(pos, nid, nick, elev) {
+  var image = {
+    url: 'https://sites.google.com/site/sierrakml/test/FF0000_v6.png',
+    size: new google.maps.Size(12, 12),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(6, 6)
+  };
+  if (contains(trailheads, nid)) {
+    var image = {
+    url: 'https://sites.google.com/site/sierrakml/test/TRAILHEAD_v1.png',
+    size: new google.maps.Size(12, 12),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(6, 6)
+    };
+  };
+  
+  var shape = {
+    coord: [0, 0, 0, 12, 12, 12, 12 , 0],
+    type: 'poly'
+  };
+  
+  var marker = new google.maps.Marker({       
+    position: pos, 
+    map: map,
+    icon: image,  // google.maps.Map 
+    title: nick,
+    nodeID: nid,
+    zindex: 200       
+  }); 
+  //allMarkersArray.add(marker);
+  google.maps.event.addListener(marker, 'click', function() { 
+		nodeList.push(marker.nodeID);
+		addMarker(map, marker.getPosition(), marker.nodeID);
+		if (nodeList.length > 1) {
+			if (nodeList[nodeList.length-2].substr(0,1) == 'x') {
+				// append the destination to the table    	  
+				updateCell = document.getElementById('dataTable').rows[numberOfMarkers-1].cells[2].innerHTML;
+				document.getElementById('dataTable').rows[numberOfMarkers-1].cells[2].innerHTML = updateCell.concat(nick);
+			}
+			else { addRow('dataTable', numberOfMarkers - 1, nick) }
+		}
+		else { addRow('dataTable', numberOfMarkers - 1, nick) }
+
+		lastPos = marker.getPosition();
+		 
+		if (offTrail) { // if currently off trail, get back on...
+			var path = poly.getPath();
+			goOnTrail();
+			path.push(marker.getPosition());
+  		thisHash = nodeList[nodeList.length-2].substr(1,4)
+  		outStr = path.getLength() + '/' + thisHash + '/' + lastPos.toString()     
+			updateHashFile(outStr)
+		}
+
+
+  });
+  var contentString = '<div id="content">'+
+    '<div id="siteNotice">'+
+    '</div>'+
+    '<h3 id="firstHeading" class="firstHeading">'+marker.title+'</h3>'+
+    '<div id="bodyContent">'+
+    //'<p>Elevation: ' + elev + ' ft.<br>' +
+    '<p>Elevation: ' + Math.round(elev) + ' ft.<br>' +
+    'Lat/Long: ' + marker.getPosition().lat().toFixed(5) +', ' + marker.getPosition().lng().toFixed(5) + '<br>' +
+    'Node ID: '+ marker.nodeID +
+      //'</p>' +
+      //'<img src=/SierraMapperAlpha/static/images/nodes/small/' + marker.nodeID + '.jpg width = "300" align = "middle" /img>' +
+    '</div>'+
+    '</div>';
+
+	google.maps.event.addListener(marker, 'rightclick', function() { 
+    //alert(marker.title + '\nnode ID: ' + marker.nodeID +'\nLat/Long: '+pos +'\nElevation: '+ elev)
+    var infowindow = new google.maps.InfoWindow({
+    content: contentString,
+    });
+    infowindow.open(map,marker);
+
+	});
+    
+  google.maps.event.addListener(map, 'zoom_changed', function() {
+    var pixelSizeAtZoom0 = .00075; //the size of the icon at zoom level 0
+    var maxPixelSize = 14; //
+    var zoom = map.getZoom();
+    var relativePixelSize = Math.round(pixelSizeAtZoom0*Math.pow(2,zoom)) + 3; // use 2 to the power of current zoom to calculate relative pixel size.  Base of exponent is 2 because relative size should double every time you zoom in
+
+    if(relativePixelSize > maxPixelSize) {//restrict the maximum size 
+      relativePixelSize = maxPixelSize;
+    }
+      //change the size of the icon
+    marker.setIcon(
+      new google.maps.MarkerImage(
+          marker.getIcon().url, //marker's same icon graphic
+          null, //size
+          null,
+          new google.maps.Point(relativePixelSize/2, relativePixelSize/2),
+          new google.maps.Size(relativePixelSize, relativePixelSize) //changes the scale
+      )
+    );
+  });
+    
+    google.maps.event.addListener(marker, 'mouseover', function() {
+      var pixelSizeAtZoom0 = .00075; //the size of the icon at zoom level 0
+      var maxPixelSize = 20; //
+      var zoom = map.getZoom();
+      var relativePixelSize = Math.round(pixelSizeAtZoom0*Math.pow(2,zoom)) + 3; // use 2 to the power of current zoom to calculate relative pixel size.  Base of exponent is 2 because relative size should double every time you zoom in
+      if(relativePixelSize > maxPixelSize) {//restrict the maximum size 
+       relativePixelSize = maxPixelSize; }
+    marker.setIcon(
+      new google.maps.MarkerImage(
+            marker.getIcon().url, //marker's same icon graphic
+            null, //size
+            null,
+            new google.maps.Point(1.5*relativePixelSize/2, 1.5*relativePixelSize/2),
+            new google.maps.Size(1.5*relativePixelSize, 1.5*relativePixelSize) //changes the scale
+        
+         //changes the scale
+        )
+      );
+    });
+    google.maps.event.addListener(marker, 'mouseout', function() {
+      var pixelSizeAtZoom0 = .00075; //the size of the icon at zoom level 0
+      var maxPixelSize = 14; //
+      var zoom = map.getZoom();
+      var relativePixelSize = Math.round(pixelSizeAtZoom0*Math.pow(2,zoom)) + 3; // use 2 to the power of current zoom to calculate relative pixel size.  Base of exponent is 2 because relative size should double every time you zoom in
+      if(relativePixelSize > maxPixelSize) {//restrict the maximum size 
+       relativePixelSize = maxPixelSize; }
+    marker.setIcon(
+      new google.maps.MarkerImage(
+            marker.getIcon().url, //marker's same icon graphic
+            null, //size
+            null,
+            new google.maps.Point(relativePixelSize/2, relativePixelSize/2),
+            new google.maps.Size(relativePixelSize, relativePixelSize) //changes the scale
+        
+         //changes the scale
+        )
+      );
+    });
+    allMarkersArray.push(marker);
+}    
+
+
+allMarkersArray = new Array();
+function addAllMarkers(map) {
+  for (var i=0;i<nodeMarkerList.length;i=i+5) {
+    createMarker(new google.maps.LatLng(nodeMarkerList[i+2], nodeMarkerList[i+1]), nodeMarkerList[i].split(" ").join(""), nodeMarkerList[i+3], nodeMarkerList[i+4]);    
+  }
+}  
+                     
+function calcRoute() {
+  strURL = '/SierraMapperAlpha/default/mapper'   
+  if (nodeList.length > 25) {
+    alert("More than 23 vias?\n\nWe're a little short on jigabytes around here--want to try again with a shorter route?\n\n(long routes create large .png and .pdf files, and right now, my server money comes out of the same jar as my beer money.)")
+  }
+  else {for (var i=0;i<nodeList.length;i++) 
+		{
+    strURL = strURL + '/' + nodeList[i]
+    }
+    window.location=strURL; 
+  }
+}       
+        
+var markersArray = new Array();
+var numberOfMarkers = 0;    //track number of markers added
+var firstPosition = new google.maps.LatLng(34.03, -118.235);
+var distanceArray = new Array();
+function addMarker(map, location, nid) {
+    //alert('I am calling addMarker!')
+  var image_start = {
+    url: 'https://sites.google.com/site/sierrakml/test/START_v6.png',
+    size: new google.maps.Size(24, 24),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(12, 12),
+    zindex: google.maps.Marker.MAX_ZINDEX + 1
+  };
+  
+  var image_finish2 = {
+    url: 'https://sites.google.com/site/sierrakml/test/FINISH_v5.png',
+    size: new google.maps.Size(24, 24),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(12, 12)
+  };
+  
+    var image_finish = {
+    url: 'https://sites.google.com/site/sierrakml/test/FINISH_v4.png',
+    size: new google.maps.Size(32, 32),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(16, 16),
+    zindex: 1
+  };
+  
+    var image_via = {
+    url: 'https://sites.google.com/site/sierrakml/test/VIA_v3.png',
+    size: new google.maps.Size(24, 24),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(12, 12),
+    zindex: 10
+  };
+  var shape = {
+    coord: [0, 0, 0, 20, 20, 20, 20 , 0],
+    type: 'poly'
+  };
+  
+  if (numberOfMarkers == 0) {
+    image = image_start;
+    firstPosition = location;
+    zindex = 2;
+  }
+  if (numberOfMarkers == 1) {
+    image = image_finish2;
+    zindex = 1;
+  }
+  if (numberOfMarkers > 1)  {
+    image = image_finish2;
+    zindex = 1;
+      //alert(location.toString()+ ', ' + firstPosition.toString())
+      //alert(location.toString()===firstPosition.toString())
+    if (location.toString() === firstPosition.toString()) {
+      image = image_finish;
+      zindex = 1;
+        //alert('Got here!')
+    }
+    markersArray[numberOfMarkers-1].setMap(null);
+    var lastMarker = new google.maps.Marker({
+        position: markersArray[numberOfMarkers-1].position,
+        map: map, 
+        icon: image_via,
+        title: 'title',
+        zIndex: zindex,
+        nodeID: markersArray[numberOfMarkers-1].nodeID,
+        });
+    
+    google.maps.event.addListener(map, 'zoom_changed', function() {
+      var pixelSizeAtZoom0 = .001; //the size of the icon at zoom level 0
+      var maxPixelSize = 22; //
+      var zoom = map.getZoom();
+      var relativePixelSize = Math.round(pixelSizeAtZoom0*Math.pow(2,zoom)) + 10; 
+
+      if(relativePixelSize > maxPixelSize) {//restrict the maximum size 
+        relativePixelSize = maxPixelSize;
+      }
+      //change the size of the icon
+      lastMarker.setIcon(
+        new google.maps.MarkerImage(
+            lastMarker.getIcon().url, //marker's same icon graphic
+            null, //size
+            null,
+            new google.maps.Point(relativePixelSize/2, relativePixelSize/2),
+            new google.maps.Size(relativePixelSize, relativePixelSize) //changes the scale
+        )
+      );
+    });
+    markersArray.pop()
+    markersArray.push(lastMarker)
+   }
+  
+  var marker = new google.maps.Marker({
+      position: location,
+      map: map,
+      icon: image,
+      shape: shape,
+      title: 'title',
+      zIndex: zindex,
+      nodeID: nid
+  });
+  google.maps.event.addListener(map, 'zoom_changed', function() {
+      //alert(marker.getIcon().url)
+    var pixelSizeAtZoom0 = .001; //the size of the icon at zoom level 0
+    var maxPixelSize = 22; //
+    var zoom = map.getZoom();
+    var relativePixelSize = Math.round(pixelSizeAtZoom0*Math.pow(2,zoom)) + 8; 
+      
+    if(marker.getIcon().url=='https://sites.google.com/site/sierrakml/test/FINISH_v4.png') {
+      //alert('yep')
+      var maxPixelSize = 26;
+      var pixelSizeAtZoom0 = .002; //the size of the icon at zoom level 0
+      var relativePixelSize = Math.round(pixelSizeAtZoom0*Math.pow(2,zoom)) + 12; 
+		} 
+        
+    if(relativePixelSize > maxPixelSize) {//restrict the maximum size 
+      relativePixelSize = maxPixelSize;
+    }
+      
+    //change the size of the icon
+    marker.setIcon(
+      new google.maps.MarkerImage(
+        marker.getIcon().url, //marker's same icon graphic
+        null, //size
+        null,
+        new google.maps.Point(relativePixelSize/2, relativePixelSize/2),
+        new google.maps.Size(relativePixelSize, relativePixelSize) //changes the scale
+      )
+    );
+  });
+  markersArray.push(marker)
+  numberOfMarkers++;
+    //alert('# of markers: ' + numberOfMarkers)
+	//if (nodeList[nodeList.length-1][0:2] == 'xc') 
+  
+	if (numberOfMarkers > 1) {
+    //alert(markersArray[numberOfMarkers-0].nodeID)
+    //alert('I think this one is: ' + markersArray[numberOfMarkers-1].nodeID)
+    //alert('I think the last one was: ' + markersArray[numberOfMarkers-2].nodeID)
+    //alert('Or is it: ' + lastMarker.nodeID)
+    //alert('Number of markers is: ' + numberOfMarkers)
+    //alert('Length of array is: ' + markersArray.length)
+    //strArray = ''
+    //for (var i = 0; i < numberOfMarkers; i++) {
+    //    strArray = strArray + markersArray[i].nodeID + ', '
+        //alert('node ID: ' + markersArray[i].nodeID)
+    //}
+    //alert('The array is: ' + strArray)
+    //trueLastOne = markersArray[numberOfMarkers-max(2,
+    if (nodeList[nodeList.length-2].substr(0,1) != 'x') {
+    	showRoute(markersArray[numberOfMarkers-2], markersArray[numberOfMarkers-1], map, numberOfMarkers)
+		}
+  }
+}
+var routePathArray = new Array();
+var tableIncrementer = 0;
+var greaterThan = ''
+function showRoute(marker1, marker2, map, nMarkers) {
+    //alert(nMarkers)
+    //alert('marker1 nodeID: ' + marker1.nodeID + ', marker2 nodeID: ' + marker2.nodeID + ', ')// + marker1.nodeID < marker2.nodeID)
+
+	var routeLine = []
+	if (marker1.nodeID < marker2.nodeID) {
+	    routeLine.push(marker1.position);
+	    //alert('Pushing 1')
+	} else {
+	    routeLine.push(marker2.position);
+	    //alert('Pushing 2')
+	}
+	var routePath3 = new google.maps.Polyline({
+	    path: routeLine,
+	    geodesic: true,
+	    strokeColor: '#FF33FF',
+	    strokeOpacity: 0.5,
+	    strokeWeight: 5
+	    });
+	routePathArray.push(routePath3);
+	thisElement = tableIncrementer //use for updating the table with delayed data
+	tableIncrementer++;
+	
+	// load csv file, if it exists, and add to the route = 'n001_n002.csv'
+	fileName = marker1.nodeID + '_' + marker2.nodeID + '.csv'
+	var theseNodes = [marker1.nodeID, marker2.nodeID].sort();
+	//lert('These nodes: ' + theseNodes + ' - ' + theseNodes[0])
+	fileName = theseNodes[0]+ '_' + theseNodes[1] //+ '.csv'
+	
+	function getNextCoords(fileName) {			
+		jQuery.ajax(
+			{type: "POST",
+			url: 'returnDisplayCoords', //python function
+			data: "array="+JSON.stringify(fileName),//data sent to server
+			//dataType: 'json',
+			error: function(msg){
+				calcSegment(fileName)},
+			success: function(coords){
+				addRouteToMap(coords)
+			},
+			timeout: 5000}
+		);
+	}
+
+	function calcSegment(fileName) {			
+		jQuery.ajax(
+			{type: "POST",
+			url: 'calcRouteDB', //python function
+			data: "array="+JSON.stringify(fileName),//data sent to server
+			//dataType: 'json',
+			error: function(msg){
+			
+				alert('this is really bad')},
+			success: function(){
+				//lert('got here')						  
+				//lert(coords);
+				getNextCoords(fileName)
+			},
+			timeout: 5000}
+		);
+	}
+	function addRouteToMap(coords) {
+		inCoords = coords.split(',')
+		document.getElementById('dataTable').rows[nMarkers-1].cells[3].innerHTML = ' ' + inCoords[0] + ' mi'  
+		var thisSum = 0;
+        for (var i = 1; i < document.getElementById('dataTable').rows.length - 1; i++) {
+          thisSum = thisSum + parseFloat(document.getElementById('dataTable').rows[i].cells[3].innerHTML.replace(/^&gt;/, ""))    
+        }
+        var rowCount = document.getElementById('dataTable').rows.length
+        document.getElementById('dataTable').rows[rowCount-1].cells[3].innerHTML = '<b>' + greaterThan + thisSum.toFixed(2).toString() + ' mi' + '</b>'
+        for (var i=1; i < inCoords.length; i=i+2) {
+                routeLine.push(new google.maps.LatLng(inCoords[i], inCoords[i+1]));    
+        }	
+    routePath3.setPath(routeLine)
+		routePath3.setMap(map);	
+	}
+		//return coords;	
+	getNextCoords(fileName)
+}   
+             
+    
+var rad = function(x) {
+  return x * Math.PI / 180;
+};
+
+var getDistance = function(p1, p2) {
+  var R = 3963.1676*1.03; // Earth’s mean radius in miles with fudge-factor
+  var dLat = rad(p2.lat() - p1.lat());
+  var dLong = rad(p2.lng() - p1.lng());
+  var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(rad(p1.lat())) * Math.cos(rad(p2.lat())) *
+    Math.sin(dLong / 2) * Math.sin(dLong / 2);
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  var d = R * c;
+  return d; // returns the distance in meter
+};        
+        
+function addRow(tableID, nodeNumber, nickname) {
+ 
+    var table = document.getElementById(tableID);
+    var rowCount = table.rows.length;
+    var row = table.insertRow(rowCount-1);
+    var cell1 = row.insertCell(0);
+    var cell2 = row.insertCell(1);
+    if (nodeNumber == 0) {
+        if (rowCount == 1) {
+            //table.deleteRow(0)
+        }
+    str1 = '<b>Start:</b>'
+    imStr = '<img src="https://sites.google.com/site/sierrakml/test/START_v6.png" width="16" height="16">'
+    }
+    else {
+        str1 = '<b>Finish</b>:'
+        imStr = '<img src="https://sites.google.com/site/sierrakml/test/FINISH_v5.png" width="16" height="16">'
+        if (nodeNumber > 1) {
+            document.getElementById(tableID).rows[nodeNumber-1].cells[1].innerHTML = '<b>Via:</b>'
+            document.getElementById(tableID).rows[nodeNumber-1].cells[0].innerHTML ='<img src="https://sites.google.com/site/sierrakml/test/VIA_v3.png" width="16" height="16">'            
+        }
+    }   
+    cell1.innerHTML = imStr;
+    cell2.innerHTML = str1;
+    var cell3 = row.insertCell(2);
+    cell3.innerHTML = nickname;
+    var cell4 = row.insertCell(3);
+    //cell4.innerHTML = distanceArray[0] + ' mi';
+}
+
+function instructions() {
+  alert("Instructions:\n(this will be prettier later!)\n\nThis software will create routes in the mapped region of Yosemite National Park (mapped region still expanding, of course!). Routes are created between 'nodes' on the map, which are shown by circular markers.  Regular nodes are black circles with white highlights; trailheads are black circles with purple highlights--but both are functionally identical. A route can begin or end at any node (trailhead or not), but cannot begin or end on trail segment between nodes. If you're curious about a node, you can hover your mouse over it.  If it has been assigned a 'nickname' (most nodes near prominent peaks, passes and lakes have them), it will appear.  Right-clicking on the node will show the same thing (along with some programming gobbledygook).\n\nTo create a route, simply left-click on any of the nodes in the map, in the order you would like to visit them.  The start, finish, and vias you have entered will be shown to the right.  If you make a mistake entering nodes, simply click 'Undo Last' to back up and fix it. When you are satisfied with the route, click 'Calculate Route' in the lower-left, and you will be whisked off to the route summary page, which will show the shortest route between the selected nodes, along with a detailed elevation profile.  From the route summary page, you can download the route .kml file to view in Google Earth or other software, and download the elevation profile, which would probably look pretty good on your refrigerator.  \n\nExample 1:\nYou would like to go from Happy Isles to Donahue Pass, via the shortest route.  You click once on Happy Isles, and happily note the green circle that appears there, indicating that marker will be the start for your route.  Next, you click on Donahue Pass, and see a red circle that appear, indicating that that marker will be the finish.  Satisfied and impressed, you click 'Calculate Route' and eagerly await the results.\n\nExample 2:\nYou would like to go from Happy Isles to Donahue Pass, but would like to swing by the summits of Half Dome and Cloud's Rest on the way.  You click once on Happy Isles, and again note the green circle indicating that marker will be your start.  Next, you want to visit Half Dome's summit, so you click once on Half Dome.  A red circle appears on Half Dome--if you stopped entering nodes now, that would be the finish.  Makes sense, you say, with anod.  You move on to Cloud's Rest, and click once there.  The red circle on Half Dome changed to a yellow circle, meaning that the final route should go from start to finish via that marker.  Next, you click on Donahue Pass, and see that the finish has been added to Donahue Pass, and Cloud's Rest has been changed to a via.  The route is entered, so you click on 'Calculate Route' in the lower left.")
+}
+
+function delLast() { // delete last entered node
+  //lert('number of markers before delete: ' + numberOfMarkers)
+	if (nodeList.length >= 2 && nodeList[nodeList.length - 2][0] == 'x') { // delete path and markers from XC routes and decrement off trail counter
+		polyArray[polyArray.length -1].setMap(null);
+		for (var i = 0; i < polyMarkersArray[offTrailCounter - 1].length; i++) {
+			polyMarkersArray[offTrailCounter-1][i].setMap(null);
+		}
+		polyArray.pop();
+		nodeList.pop(); // this isn't removing the 'x' node, but the next pop will
+		offTrailCounter--;
+		markersArray[numberOfMarkers-1].setMap(null);
+		//markersArray[numberOfMarkers-1].setMap(null);
+		numberOfMarkers = numberOfMarkers - 1;
+		markersArray.pop();
+	}
+
+	if (nodeList.length == 1 && nodeList[nodeList.length - 1][0] == 'x') { // if you're in the middle of an off-trail segment, and it started off-trail
+		polyArray[polyArray.length -1].setMap(null);
+		for (var i = 0; i < polyMarkersArray[offTrailCounter - 1].length; i++) {
+			polyMarkersArray[offTrailCounter-1][i].setMap(null);
+		}
+		polyArray.pop();
+		//nodeList.pop(); // the subsequent pop will remove the x
+		offTrailCounter--;
+		markersArray[numberOfMarkers-1].setMap(null);
+		//markersArray[numberOfMarkers-1].setMap(null);
+		numberOfMarkers = numberOfMarkers - 1;
+		markersArray.pop();
+	}  
+	
+	else if (nodeList.length >= 2 && nodeList[nodeList.length - 1][0] == 'x') { // if you're in the middle of an offtrail route
+		polyArray[polyArray.length -1].setMap(null);
+		for (var i = 0; i < polyMarkersArray[offTrailCounter - 1].length; i++) {
+			polyMarkersArray[offTrailCounter-1][i].setMap(null);
+		}
+		polyArray.pop();
+		//nodeList.pop(); // this isn't removing the 'x' node, but the next pop will
+		offTrailCounter--;		
+	} 
+	else {
+		//lert('here')
+		if (numberOfMarkers > 1) {
+				routePathArray[routePathArray.length-1].setMap(null);
+		}
+		markersArray[numberOfMarkers-1].setMap(null);
+		numberOfMarkers = numberOfMarkers - 1;
+		markersArray.pop();	
+		//lert('here')
+		routePathArray.pop();
+	}
+	//lert('test')
+	nodeList.pop();
+  
+  deleteRow('dataTable')
+  var image_finish = {
+     url: 'https://sites.google.com/site/sierrakml/test/FINISH_v4.png',
+    size: new google.maps.Size(32, 32),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(16, 16),
+    zindex: 1
+  };
+  if (numberOfMarkers > 1) {
+		markersArray[numberOfMarkers-1].setIcon(image_finish);
+    }
+    //lert(markersArray[numberOfMarkers-1].nodeID)
+  }
+
+        
+function deleteRow(tableID) {
+  var table = document.getElementById(tableID);
+  var rowCount = table.rows.length;  
+  table.deleteRow(rowCount-2); // delete the last row (except the "total distance" row)
+  if (rowCount > 3) { // change the finish icon and update the sum
+    var thisSum = 0;
+    document.getElementById(tableID).rows[rowCount-3].cells[0].innerHTML = '<img src="https://sites.google.com/site/sierrakml/test/FINISH_v5.png" width="16" height="16">'
+    //lert(parseFloat(document.getElementById(tableID).rows[rowCount-3].cells[3].innerHTML).toString())
+    for (var i = 1; i < rowCount - 2; i++) {
+        thisSum = thisSum + parseFloat(document.getElementById(tableID).rows[i].cells[3].innerHTML)        
+    }
+      document.getElementById(tableID).rows[rowCount-2].cells[3].innerHTML = '<b>' + thisSum.toFixed(2).toString() + ' mi' + '</b>'
+  }
+  else {
+    document.getElementById(tableID).rows[rowCount-2].cells[3].innerHTML = '<b>' + '0 mi' + '</b>'
+  }
+      
+  rowCount--;      
+}
+
+// search
+        //var b =jQuery("#nodes").keyup(function(){
+        //ajax('nodes_selector', ['nodes'], 'suggestions')});
+ 
+    </script>
+  </head>
+  <body style="margin: 0;">
+            <div class="navbar navbar-inverse">
+    <div class="flash">{{=response.flash or ''}}</div>
+    <div class="navbar-inner">
+      <div class="container">
+        {{is_mobile=request.user_agent().is_mobile}}
+        <!-- the next tag is necessary for bootstrap menus, do not remove -->
+        <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse" style="{{='display:none;' if not is_mobile else ''}}">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        {{=response.logo or ''}}
+        <ul id="navbar" class="nav pull-right">{{='auth' in globals() and auth.navbar(mode="dropdown") or ''}}</ul>
+        <div class="{{='nav-collapse' if is_mobile else 'nav'}}">
+          {{if response.menu:}}
+          {{=MENU(response.menu, _class='mobile-menu nav' if is_mobile else 'nav',mobile=is_mobile,li_class='dropdown',ul_class='dropdown-menu')}}
+          {{pass}}
+        </div><!--/.nav-collapse -->
+      </div>
+    </div>
+  </div><!--/top navbar -->
+      
+      
+   
+     <div id="q" name = "10" value="100"></div>
+     <div id="container">
+        <div class="strokeme"><TABLE id="dataTableHeader", border="0"></TABLE></div>
+        <div class="strokeme"><TABLE id="dataTable", border="0"></TABLE></div>
+        <div>
+<table id="legend">
+<tr onclick="ExpandCollapseTable(this);" style="cursor:pointer;">
+<td colspan=4 class="table-header">
+<b>Legend</b>
+</td>
+</tr>
+<tr>
+<td style="width: 30px"><img src="https://sites.google.com/site/sierrakml/test/TRAILHEAD_v1.png" width="14" height="14"></td>
+<td style="width: 150px">Routable Trailhead</td>
+
+<td style="width: 30px"><img src="https://sites.google.com/site/sierrakml/test/FF0000_v6.png" width="16"></td>
+<td style="width: 150px">Routable Node</td>
+</tr>
+<tr>
+<td style="width: 30px"><img src="{{=URL('static/images','trail_v1.png')}}" width="25"></td>
+<td style="width: 150px">Routable Trail</td>
+<td style="width: 30px"><img src="{{=URL('static/images','trail_calculated.png')}}" width="25"></td>
+<td style="width: 150px">On-Trail Route</td>
+</tr>
+<tr>
+<td style="width: 30px"><img src="https://sites.google.com/site/sierrakml/test/XC_legend_v2.png" width="25"></td>
+<td style="width: 150px">Off-Trail Route</td>
+</tr>
+</table>
+       </div>
+       
+        <div id="map_canvas"></div>
+    
+    <div id="buttons">
+<input type="submit" value="Go Off Trail" style="font-family: helvetica, serif; font-size: 16px; font-weight: bold; padding: 5px 5px; cursor:pointer " onClick="goOffTrail();">  
+    <input type="submit" value="Instructions" style="font-family: helvetica, serif; font-size: 16px; font-weight: bold; padding: 5px 5px; cursor:pointer " onClick="instructions();">    
+    <input type="submit" value="Undo Last" style="font-family: helvetica, serif; font-size: 16px; font-weight: bold; padding: 5px 5px; cursor:pointer " onClick="delLast();">
+
+    <input type="submit" value="Calculate Route!" style="font-family: helvetica, serif; font-size: 16px; font-weight: bold; padding: 5px 5px; cursor: pointer" onClick="calcRoute();">
+    </div>
+    
+    <div id="hiddenReturn" class="hiddenReturn"><h1>asdf</h1></div>
+    <div id="nodesHeader">Search:</div>
+    <form>
+    <input type="text" id="nodes" name="nodes"  /><br />  
+    <div style="position: absolute;" id="suggestions"
+      class="suggestions"></div>
+    </form>
+    
+    <div id = "gobutton">
+    <input type="submit" value="Go!" style="font-family: helvetica, serif; font-size: 12px; font-weight: bold; padding: 2px 2px; cursor: pointer" onClick="goTo();">
+    </div>
+    
+    <div id="logo">
+    <img src=/SierraMapper/static/images/title2_small.png width = "140" align = "right"/>
+    </div>
+    
+    
+    
+
+</div>
+    
+    </div>
+  <script src="{{=URL('static','js/bootstrap.min.js')}}"></script>
+  <script src="{{=URL('static','js/web2py_bootstrap.js')}}"></script>
+
+<!-- Start of StatCounter Code for Default Guide -->
+<script type="text/javascript">
+var sc_project=10354411; 
+var sc_invisible=1; 
+var sc_security="dcbf5ea6"; 
+var scJsHost = (("https:" == document.location.protocol) ?
+"https://secure." : "http://www.");
+document.write("<sc"+"ript type='text/javascript' src='" +
+scJsHost+
+"statcounter.com/counter/counter.js'></"+"script>");
+</script>
+<noscript><div class="statcounter"><a title="web stats"
+href="http://statcounter.com/free-web-stats/"
+target="_blank"><img class="statcounter"
+src="http://c.statcounter.com/10354411/0/dcbf5ea6/1/"
+alt="web stats"></a></div></noscript>
+<!-- End of StatCounter Code for Default Guide -->    
+    
+    
+  </body>
+  <script>
+table = document.getElementById("dataTableHeader");
+var row = table.insertRow(0);
+var cell1 = row.insertCell(0);
+cell1.innerHTML = '<b>Entered Route: <b>'; 
+table = document.getElementById("dataTable");
+var row = table.insertRow(0);
+var cell1 = row.insertCell(0);
+      //cell1.innerHTML = 'None Yet!'; 
+var cell2 = row.insertCell(1);
+var cell3 = row.insertCell(2);
+var cell4 = row.insertCell(3);
+cell3.innerHTML = '<b> Total Distance:  </b>';    
+cell4.innerHTML = '<b> 0 mi </b>';
+      
+google.maps.event.addDomListener(window, 'load', initialize);
+
+jQuery("#nodes").keyup(function(){
+      ajax('nodes_selector', ['nodes'], 'suggestions')})
+
+jQuery("#suggestions").click(function(){
+  ajax('nodesReturn', ['nodes'], 'hiddenReturn')
+  document.getElementById("suggestions").innerHTML = ''})
+  
+function goTo() {
+
+  var goToNode = document.getElementById('hiddenReturn').innerHTML;
+  //lert(goToNode)
+  goToNode = goToNode.split("[").join("")
+  goToNode = goToNode.split("]").join("")
+  goToNode = goToNode.split(",") 
+  position = new google.maps.LatLng(goToNode[1], goToNode[2])
+  map.setCenter(position);
+  map.setZoom(13);
+  
+  var image_s1 = {
+      url: 'https://sites.google.com/site/sierrakml/test/s1.png',
+      size: new google.maps.Size(64, 64),
+      origin: new google.maps.Point(0,0),
+      anchor: new google.maps.Point(32, 32),
+      zindex: 1
+    };
+    var image_s2 = {
+      url: 'https://sites.google.com/site/sierrakml/test/s2.png',
+      size: new google.maps.Size(64, 64),
+      origin: new google.maps.Point(0,0),
+      anchor: new google.maps.Point(32, 32),
+      zindex: 1
+    };
+        var image_s3 = {
+      url: 'https://sites.google.com/site/sierrakml/test/s3.png',
+      size: new google.maps.Size(64, 64),
+      origin: new google.maps.Point(0,0),
+      anchor: new google.maps.Point(32, 32),
+      zindex: 1
+    };
+    
+    var image_s4 = {
+      url: 'https://sites.google.com/site/sierrakml/test/s4.png',
+      size: new google.maps.Size(64, 64),
+      origin: new google.maps.Point(0,0),
+      anchor: new google.maps.Point(32, 32),
+      zindex: 1
+    };
+    
+        var image_s5 = {
+      url: 'https://sites.google.com/site/sierrakml/test/s5.png',
+      size: new google.maps.Size(64, 64),
+      origin: new google.maps.Point(0,0),
+      anchor: new google.maps.Point(32, 32),
+      zindex: 1
+    };
+    
+        var image_s6 = {
+      url: 'https://sites.google.com/site/sierrakml/test/s6.png',
+      size: new google.maps.Size(64, 64),
+      origin: new google.maps.Point(0,0),
+      anchor: new google.maps.Point(32, 32),
+      zindex: 1
+    };
+  
+  var dt = 80 // delay in ms
+  function addSearchMarker(image) {  
+    var marker = new google.maps.Marker({       
+      position: position, 
+      map: map,
+      icon: image,  // google.maps.Map 
+      title: 'Search Result',
+      nodeID: 'none',
+      zindex: 1  
+        
+    });
+    setTimeout(function(){marker.setMap(null)},dt + 12) 
+    //setTimeout(alert('yep',5000))   
+  }
+  
+  function addAllSearchMarkers(mult) {  
+      setTimeout(function(){addSearchMarker(image_s1)},mult*dt);
+      setTimeout(function(){addSearchMarker(image_s2)},(mult+1)*dt);
+      setTimeout(function(){addSearchMarker(image_s3)},(mult+2)*dt);
+      setTimeout(function(){addSearchMarker(image_s4)},(mult+3)*dt);
+      setTimeout(function(){addSearchMarker(image_s5)},(mult+4)*dt); 
+      setTimeout(function(){addSearchMarker(image_s6)},(mult+5)*dt); 
+      alert('uh')  
+    
+    //setTimeout(alert('yep',5000))   
+  }
+  //addSearchMarker(image_s1);
+    mult = 5
+    setTimeout(function(){addSearchMarker(image_s1)},mult*dt);
+    setTimeout(function(){addSearchMarker(image_s2)},(mult+1)*dt);
+    setTimeout(function(){addSearchMarker(image_s3)},(mult+2)*dt);
+    setTimeout(function(){addSearchMarker(image_s4)},(mult+3)*dt);
+    setTimeout(function(){addSearchMarker(image_s5)},(mult+4)*dt); 
+    setTimeout(function(){addSearchMarker(image_s6)},(mult+5)*dt); 
+    
+    mult = 15
+    setTimeout(function(){addSearchMarker(image_s1)},mult*dt);
+    setTimeout(function(){addSearchMarker(image_s2)},(mult+1)*dt);
+    setTimeout(function(){addSearchMarker(image_s3)},(mult+2)*dt);
+    setTimeout(function(){addSearchMarker(image_s4)},(mult+3)*dt);
+    setTimeout(function(){addSearchMarker(image_s5)},(mult+4)*dt); 
+    setTimeout(function(){addSearchMarker(image_s6)},(mult+5)*dt); 
+    
+    mult = 25
+    setTimeout(function(){addSearchMarker(image_s1)},mult*dt);
+    setTimeout(function(){addSearchMarker(image_s2)},(mult+1)*dt);
+    setTimeout(function(){addSearchMarker(image_s3)},(mult+2)*dt);
+    setTimeout(function(){addSearchMarker(image_s4)},(mult+3)*dt);
+    setTimeout(function(){addSearchMarker(image_s5)},(mult+4)*dt); 
+    setTimeout(function(){addSearchMarker(image_s6)},(mult+5)*dt); 
+    
+    mult = 35
+    setTimeout(function(){addSearchMarker(image_s1)},mult*dt);
+    setTimeout(function(){addSearchMarker(image_s2)},(mult+1)*dt);
+    setTimeout(function(){addSearchMarker(image_s3)},(mult+2)*dt);
+    setTimeout(function(){addSearchMarker(image_s4)},(mult+3)*dt);
+    setTimeout(function(){addSearchMarker(image_s5)},(mult+4)*dt); 
+    setTimeout(function(){addSearchMarker(image_s6)},(mult+5)*dt); 
+    
+    //mult = 45
+    //setTimeout(function(){addSearchMarker(image_s1)},mult*dt);
+    //setTimeout(function(){addSearchMarker(image_s2)},(mult+1)*dt);
+    //setTimeout(function(){addSearchMarker(image_s3)},(mult+2)*dt);
+    //setTimeout(function(){addSearchMarker(image_s4)},(mult+3)*dt);
+    //setTimeout(function(){addSearchMarker(image_s5)},(mult+4)*dt); 
+    //setTimeout(function(){addSearchMarker(image_s6)},(mult+5)*dt); 
+  
+}
+
+//attempt to decode nodes passed to start.html, so one can resume editing a route
+function parseInput() {
+    var latlngbounds = new google.maps.LatLngBounds(); // used to automatically zoom to route upon return
+    var queryString = window.location.hash.split('/');
+    if (queryString.length > 1) { // nodes were passed as arguments to start
+        //alert('I should do something with ' + queryString)
+        numberOfTheseMarkers = queryString.length - 1
+        for (var i = 1; i <= numberOfTheseMarkers; i++) {
+            //alert(queryString[i]);
+            for (var j=0;j<nodeMarkerList.length;j=j+5) {
+                tempStr = nodeMarkerList[j].trim();
+                matchStr = queryString[i]
+                //alert(tempStr);
+                if (tempStr === matchStr) {
+                    //alert('Match!');
+                    thisPosition = new google.maps.LatLng(nodeMarkerList[j+2], nodeMarkerList[j+1]);
+                    latlngbounds.extend(thisPosition)
+                    //alert(map.getZoom())
+                    nodeList.push(nodeMarkerList[j].trim())
+                    addMarker(map, thisPosition, nodeMarkerList[j].trim()); // note--addMarker also checks for number of markers, and adds the route
+                    addRow('dataTable', i-1, nodeMarkerList[j+3]);
+                    //alert('# of markers: ' + numberOfMarkers)                    
+                }
+            }
+        }
+        map.fitBounds(latlngbounds);
+    }
+    //numberOfMarkers = numberOfTheseMarkers
+    //alert(queryString.length)
+}
+
+function createToken() {
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    for( var i=0; i < 3; i++ )
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    return text;
+}
+
+function createHashFile(thisHash) {			
+  $.ajax({
+    type: "POST",
+    url: "createHashFile",
+    data: "array="+JSON.stringify(thisHash.toString())
+  }).done(function( msg ) { });
+}
+
+function updateHashFile(newData) {			
+  $.ajax({
+    type: "POST",
+    url: "updateHashFile",
+    data: "array="+JSON.stringify(newData.toString())
+  }).done(function( msg ) { });
+}
+
+//createHashFile('ANewHash')
+</script>
+</html>
+

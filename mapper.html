@@ -1,0 +1,475 @@
+{{extend 'layout.html'}}
+{{import os}}
+<h2>Route Summary:</h2>
+{{start = db(db.routes.route_id==key).select().first().startlocation}}
+{{finish = db(db.routes.route_id==key).select().first().endlocation}}
+
+{{routeStr = 'From ' + start + ' to ' + finish}}
+
+
+{{if len(routeDescription) > 2:}}
+{{for i in range(1, len(routeDescription)-1):}}
+{{routeStr = routeStr + ' via ' + routeDescription[i]}}
+{{pass}}
+{{pass}}
+{{profileString = db(db.routes.route_id==key).select().first().profile}}
+
+<!DOCTYPE html>
+<html>
+    
+      <TABLE>
+        <TR>
+          <TD valign="middle"><b>Route ID:</b></TD>
+          <TD valign="middle">{{=str(XML(response.json(key))).strip('"')}}</TD>
+       </TR>
+
+        <TR>
+          <TD valign="middle"><b>Route Description:</b></TD>
+          <TD valign="middle">{{=routeStr}}</TD>
+       </TR>
+       <TR>
+          <TD valign="middle"><b>Linear Distance:</b></TD>
+          <TD valign="middle">{{=str(0.01*int(100*db(db.routes.route_id==key).select().first().lineardistance))}} miles</TD>
+       </TR>  
+       <TR>
+          <TD valign="middle"><b>Terrain Distance:</b></TD>
+          <TD valign="middle">{{=str(0.01*int(100*db(db.routes.route_id==key).select().first().terraindistance))}} miles</TD>
+       </TR>
+             <TR>
+          <TD valign="middle"><b>Vertical Ascent/Descent:</b></TD>
+{{ascent = db(db.routes.route_id==key).select().first().ascent}}
+{{descent = db(db.routes.route_id==key).select().first().descent}}
+           <TD valign="middle">+{{=str(format(int(ascent), ",d"))}} feet / -{{=str(format(int(descent), ",d"))}} feet</TD>
+           
+    </TABLE>
+  <head>
+    <style>
+      #map_canvas {
+        width: 1000px;
+        height: 500px;
+      }
+    </style>
+    <script src="https://maps.googleapis.com/maps/api/js?sensor=false"></script>
+    <script>
+        
+     var map;
+     var src = 'https://sites.google.com/site/sierrakml/test/edges_display1.kml'
+     var src2 = 'https://sites.google.com/site/sierrakml/test/edges_display2.kml'
+     var src3 = 'https://sites.google.com/site/sierrakml/test/edges_display3.kml'
+     var src4 = 'https://sites.google.com/site/sierrakml/test/yose_ep_bnd4.kml'
+     var src5 = 'https://sites.google.com/site/sierrakml/test/SEKI_bnd1.kml'
+     var src6 = 'https://sites.google.com/site/sierrakml/test/SEKI_bnd2.kml'
+     
+     var key = {{=XML(response.json(key))}};
+     //lert(key)
+     
+     var route = {{=XML(response.json(outCoords))}};
+     route = route.split("[").join("");
+     route = route.split("]").join("");
+     route = route.split(",")
+    
+    
+    var inputMarkerList = {{=XML(response.json(inputList))}};
+    inputMarkerList = inputMarkerList.split("[").join("")
+    inputMarkerList = inputMarkerList.split("]").join("")
+    inputMarkerList = inputMarkerList.split('"').join("")
+    inputMarkerList = inputMarkerList.split(",")
+    
+    var nodeMarkerList = {{=XML(response.json(nodeMarkers))}};
+    nodeMarkerList = nodeMarkerList.split("[").join("")
+    nodeMarkerList = nodeMarkerList.split("]").join("")
+    nodeMarkerList = nodeMarkerList.split("'").join("")
+    nodeMarkerList = nodeMarkerList.split('"').join("")
+    nodeMarkerList = nodeMarkerList.split(",") 
+    
+/*
+    var nodeArray = []
+    for (var i=0;i<nodeLabelList.length;i = i + 4)
+    
+    {
+    nodeArray.push([nodeLabelList[i+2], nodeLabelList[i+1], nodeLabelList[i],nodeLabelList[i+3]]);
+    }
+*/    
+    var trailheads = ['n001','n033','n036','n044','n052','n060','n077','n148','n149','n154','n164','n190','n195','n200','n201','n278','n286','n298','n346', 'n347', 'n361','n375','n379','n395','n396','n415','n417','n423','n429'];  
+    trailheads.push('m001','m010','m019','m045','m057','m069','m075','m082','m084','m086','m090','m092','m105','m106','m121','m131','m143','m178','m203','m224','m227')
+    trailheads.push('k093','k119','k148')
+    trailheads.push('r065','r077','r083','r096','r149','r184','r185','r198','r213','r215','r217','r234')
+    trailheads.push('s052')
+    trailheads.push('l001','l066')
+    trailheads.push('t001','t029','t032')
+    
+
+/**
+ * Initializes the map and calls the function that creates polylines.
+ */          
+            
+function initialize() {
+  var styles = [ { "featureType": "water", "elementType": "geometry.fill", "stylers": [ { "saturation": 44 }, { "gamma": 1.04 }, { "weight": 0.3 }, { "visibility": "on" } ] },{ "featureType": "water", "elementType": "labels.text.fill", "stylers": [ { "weight": 4.8 }, { "visibility": "on" }, { "lightness": 100 }, { "color": "#0040b7" } ] },{ "featureType": "landscape.natural.landcover", "elementType": "geometry.fill", "stylers": [ { "weight": 0.1 }, { "lightness": 14 }, { "saturation": -63 } ] },{ "featureType": "landscape", "elementType": "geometry.fill", "stylers": [ { "saturation": -65 }, { "lightness": 27 } ] }, { "featureType": "poi", "elementType": "geometry.fill", "stylers": [ { "saturation": -79 } ] } ];
+  var mapTypeIds = [];
+        for(var type in google.maps.MapTypeId) {
+            mapTypeIds.push(google.maps.MapTypeId[type]);
+        }
+        mapTypeIds.push("CTQ");
+        mapTypeIds.push("CTSR");
+        mapTypeIds.push("OSM_Mapquest")
+    
+    map = new google.maps.Map(document.getElementById('map_canvas'), {
+    //center: new google.maps.LatLng(38, -119.5),
+     mapTypeControlOptions: {
+         mapTypeIds: mapTypeIds
+         },
+    mapTypeId: "CTQ"
+  });
+  map.setOptions({styles: styles});
+  addInputMarkers(map);
+  loadKmlLayer(src, map);
+  loadKmlLayer(src2, map);
+  loadKmlLayer(src3, map);
+  loadKmlLayer(src4, map);
+  loadKmlLayer(src5, map);
+  loadKmlLayer(src6, map);
+    //loadKmlLayer(src6, map);
+  addAllMarkers(map);
+  loadRoute(route, map);
+                
+    map.mapTypes.set("CTQ", new google.maps.ImageMapType({
+                getTileUrl: function(coord, zoom) {
+                    //return "http://tile.openstreetmap.org/" + zoom + "/" + coord.x + "/" + coord.y + ".png";
+		    return "http://s3-us-west-1.amazonaws.com/caltopo/topo/" + zoom + "/" + coord.x + "/" + coord.y + ".png";
+                },
+                tileSize: new google.maps.Size(256, 256),
+                name: "CalTopo USGS Quads",
+                maxZoom: 15
+            }));
+                map.mapTypes.set("OSM_Mapquest", new google.maps.ImageMapType({
+                getTileUrl: function(coord, zoom) {
+                    //return "http://tile.openstreetmap.org/" + zoom + "/" + coord.x + "/" + coord.y + ".png";
+		    return "http://otile1.mqcdn.com/tiles/1.0.0/osm/" + zoom + "/" + coord.x + "/" + coord.y + ".jpg";
+                },
+                tileSize: new google.maps.Size(256, 256),
+                name: "OSM/Mapquest",
+                maxZoom: 15
+            }));
+
+		var imageMapType = new google.maps.ImageMapType({
+		    getTileUrl: function(coord, zoom) {
+
+
+		      return "http://s3-us-west-1.amazonaws.com/ctrelief/relief/" + zoom + "/" + coord.x + "/" + coord.y + ".png";
+		    },
+		    tileSize: new google.maps.Size(256, 256),
+		    opacity: 0.3
+		  });
+
+		  
+		  //map.overlayMapTypes[0].setOpacity(.25) 
+		  map.overlayMapTypes.push(imageMapType);
+  
+}
+
+/**
+ * Adds a KMLLayer based on the URL passed. Clicking on a marker
+ * results in the balloon content being loaded into the right-hand div.
+ * @param {string} src A URL for a KML file.
+ */
+function loadKmlLayer(src, map) {
+  var kmlLayer = new google.maps.KmlLayer(src, {
+    suppressInfoWindows: false,
+    preserveViewport: true,
+    map: map,
+    clickable: false,
+    zindex: 200
+  });
+}
+
+function zoomToObject(obj){
+    var bounds = new google.maps.LatLngBounds();
+    var points = obj.getPath().getArray();
+    for (var n = 0; n < points.length ; n++){
+        bounds.extend(points[n]);
+    }
+    map.fitBounds(bounds);
+}
+
+function loadRoute(route, map) {
+  var routeLine = []
+  var latlngbounds = new google.maps.LatLngBounds();
+  for (var i=0;i<route.length;i = i + 3)
+  {
+  routeLine.push(new google.maps.LatLng(route[i+1], route[i]));
+  latlngbounds.extend(new google.maps.LatLng(route[i+1], route[i]));
+  }
+    var routePath3 = new google.maps.Polyline({
+    path: routeLine,
+    geodesic: true,
+    //strokeColor: '#00B5FF',
+    strokeColor: '#FF33FF',
+    //strokeColor: '#FF9900',
+    strokeOpacity: 0.7,
+    strokeWeight: 8
+  });
+
+  var routePath = new google.maps.Polyline({
+    path: routeLine,
+    geodesic: true,
+    strokeColor: '#FFFFFF',
+    //strokeColor: '#00B5FF',
+    strokeOpacity: 0.7,
+    strokeWeight: 5
+  });
+  var routePath2 = new google.maps.Polyline({
+    path: routeLine,
+    geodesic: true,
+    strokeColor: '#000000',
+    strokeOpacity: 0.7,
+    strokeWeight: 2
+  });
+  
+
+  
+  routePath.setMap(map);
+  routePath2.setMap(map);
+  routePath3.setMap(map);
+  map.fitBounds(latlngbounds);
+  //zoomToObject(routePath);
+}              
+
+function contains(a, obj) {
+    for (var i = 0; i < a.length; i++) {
+        if (a[i] == obj) {
+            return true;
+        }
+    }
+    return false;
+}
+     
+function createMarker(pos, nid, nick, elev) {
+  var image = {
+    url: 'https://sites.google.com/site/sierrakml/test/FF0000_v6.png',
+    size: new google.maps.Size(12, 12),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(6, 6)
+  };
+  if (contains(trailheads, nid)) {
+    var image = {
+    url: 'https://sites.google.com/site/sierrakml/test/TRAILHEAD_v1.png',
+    size: new google.maps.Size(12, 12),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(6, 6)
+    };
+  };
+  
+  var shape = {
+    coord: [0, 0, 0, 12, 12, 12, 12 , 0],
+    type: 'poly'
+  };
+  var marker = new google.maps.Marker({       
+    position: pos, 
+    map: map,
+    icon: image,  // google.maps.Map 
+    title: nick,
+    nodeID: nid,
+    zindex: 200        
+    
+    });
+     var contentString = '<div id="content">'+
+      '<div id="siteNotice">'+
+      '</div>'+
+      '<h4 id="firstHeading" class="firstHeading">'+marker.title+'</h4>'+
+      '<div id="bodyContent">'+
+      //'<p>Elevation: ' + elev + ' ft.<br>' +
+      '<p>Elevation: ' + Math.round(elev) + ' ft.<br>' +
+      'Lat/Long: ' + marker.getPosition().lat().toFixed(5) +', ' + marker.getPosition().lng().toFixed(5) + '<br>' +
+      'Node ID: '+ marker.nodeID +
+        //'</p>' +
+        //'<img src=/SierraMapper/static/images/nodes/small/' + marker.nodeID + '.jpg width = "300" align = "middle" /img>' +
+      '</div>'+
+      '</div>';
+
+     google.maps.event.addListener(marker, 'rightclick', function() { 
+       //alert(marker.title + '\nnode ID: ' + marker.nodeID +'\nLat/Long: '+pos +'\nElevation: '+ elev)
+       var infowindow = new google.maps.InfoWindow({
+       content: contentString,
+       });
+       infowindow.open(map,marker);
+
+    });
+    
+    google.maps.event.addListener(map, 'zoom_changed', function() {
+      var pixelSizeAtZoom0 = .00075; //the size of the icon at zoom level 0
+      var maxPixelSize = 14; //
+      var zoom = map.getZoom();
+      var relativePixelSize = Math.round(pixelSizeAtZoom0*Math.pow(2,zoom)) + 3; // use 2 to the power of current zoom to calculate relative pixel size.  Base of exponent is 2 because relative size should double every time you zoom in
+
+      if(relativePixelSize > maxPixelSize) {//restrict the maximum size 
+        relativePixelSize = maxPixelSize;
+      }
+      //change the size of the icon
+      marker.setIcon(
+        new google.maps.MarkerImage(
+            marker.getIcon().url, //marker's same icon graphic
+            null, //size
+            null,
+            new google.maps.Point(relativePixelSize/2, relativePixelSize/2),
+            new google.maps.Size(relativePixelSize, relativePixelSize) //changes the scale
+        )
+      );
+    });
+    
+    google.maps.event.addListener(marker, 'mouseover', function() {
+      var pixelSizeAtZoom0 = .00075; //the size of the icon at zoom level 0
+      var maxPixelSize = 20; //
+      var zoom = map.getZoom();
+      var relativePixelSize = Math.round(pixelSizeAtZoom0*Math.pow(2,zoom)) + 3; // use 2 to the power of current zoom to calculate relative pixel size.  Base of exponent is 2 because relative size should double every time you zoom in
+      if(relativePixelSize > maxPixelSize) {//restrict the maximum size 
+       relativePixelSize = maxPixelSize; }
+    marker.setIcon(
+      new google.maps.MarkerImage(
+            marker.getIcon().url, //marker's same icon graphic
+            null, //size
+            null,
+            new google.maps.Point(1.5*relativePixelSize/2, 1.5*relativePixelSize/2),
+            new google.maps.Size(1.5*relativePixelSize, 1.5*relativePixelSize) //changes the scale
+        
+         //changes the scale
+        )
+      );
+    });
+    google.maps.event.addListener(marker, 'mouseout', function() {
+      var pixelSizeAtZoom0 = .00075; //the size of the icon at zoom level 0
+      var maxPixelSize = 14; //
+      var zoom = map.getZoom();
+      var relativePixelSize = Math.round(pixelSizeAtZoom0*Math.pow(2,zoom)) + 3; // use 2 to the power of current zoom to calculate relative pixel size.  Base of exponent is 2 because relative size should double every time you zoom in
+      if(relativePixelSize > maxPixelSize) {//restrict the maximum size 
+       relativePixelSize = maxPixelSize; }
+    marker.setIcon(
+      new google.maps.MarkerImage(
+            marker.getIcon().url, //marker's same icon graphic
+            null, //size
+            null,
+            new google.maps.Point(relativePixelSize/2, relativePixelSize/2),
+            new google.maps.Size(relativePixelSize, relativePixelSize) //changes the scale
+        
+         //changes the scale
+        )
+      );
+    });
+    
+
+}    
+
+
+function addAllMarkers(map) {
+  for (var i=0;i<nodeMarkerList.length;i=i+5) {
+    createMarker(new google.maps.LatLng(nodeMarkerList[i+2], nodeMarkerList[i+1]), nodeMarkerList[i].split(" ").join(""), nodeMarkerList[i+3], nodeMarkerList[i+4]);    
+  }
+}
+
+
+function addInputMarkers(map) {
+// Adds the markers that the user selected (green, yellow, red)
+  var start_image = {
+    url: 'https://sites.google.com/site/sierrakml/test/START_v5.png',
+    size: new google.maps.Size(24, 24),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(12, 12),
+    
+  };
+  var via_image = {
+    url: 'https://sites.google.com/site/sierrakml/test/VIA_v2.png',
+    size: new google.maps.Size(24, 24),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(12, 12),
+  };
+  
+  var finish_image = {
+    url: 'https://sites.google.com/site/sierrakml/test/FINISH_v3.png',
+    size: new google.maps.Size(24, 24),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(12, 12)
+  };
+  var finish_image2 = {
+    url: 'https://sites.google.com/site/sierrakml/test/FINISH_v4.png',
+    size: new google.maps.Size(32, 32),
+    origin: new google.maps.Point(0,0),
+    anchor: new google.maps.Point(16, 16)
+  };
+  var shape = {
+    coord: [-2, -2, -2, 11, 11, 11, 11 , -2],
+    type: 'poly'
+  };
+  for (var i = 0; i < inputMarkerList.length; i = i+3) {
+    var image = via_image; 
+    if (i == 0) {
+      image = start_image; }
+    if (i==inputMarkerList.length - 3) {
+      image = finish_image; 
+      if (inputMarkerList[i+1] == inputMarkerList[1]) {
+        image = finish_image2; }
+    }
+  addInputMarker(new google.maps.LatLng(inputMarkerList[i+2], inputMarkerList[i+1]), image, shape)            
+  }
+  
+}
+
+function addInputMarker(pos, image, shape){
+
+  var marker = new google.maps.Marker({
+        position: pos,
+        map: map,
+        icon: image,
+        shape: shape,
+        title: 'start',
+        zIndex: 1
+    });
+  if(marker.getIcon().url=='https://sites.google.com/site/sierrakml/test/FINISH_v4.png') {
+    marker.setZIndex(0) }
+  google.maps.event.addListener(map, 'zoom_changed', function() {
+      var pixelSizeAtZoom0 = .0025; //the size of the icon at zoom level 0
+      var maxPixelSize = 20; //
+      var zoom = map.getZoom();
+      var relativePixelSize = Math.round(pixelSizeAtZoom0*Math.pow(2,zoom)) + 3; // use 2 to the power of current zoom to calculate relative pixel size.  Base of exponent is 2 because relative size should double every time you zoom in
+      if(marker.getIcon().url=='https://sites.google.com/site/sierrakml/test/FINISH_v4.png') {
+        //alert('yep')
+        var maxPixelSize = 26;
+        var pixelSizeAtZoom0 = .005; //the size of the icon at zoom level 0
+        var relativePixelSize = Math.round(pixelSizeAtZoom0*Math.pow(2,zoom)) + 6; } 
+      
+      if(relativePixelSize > maxPixelSize) {//restrict the maximum size 
+        relativePixelSize = maxPixelSize;
+      }
+      //change the size of the icon
+      marker.setIcon(
+        new google.maps.MarkerImage(
+            marker.getIcon().url, //marker's same icon graphic
+            null, //size
+            null,
+            new google.maps.Point(relativePixelSize/2, relativePixelSize/2),
+            new google.maps.Size(relativePixelSize, relativePixelSize) //changes the scale
+        )
+      );
+    });
+}
+google.maps.event.addDomListener(window, 'load', initialize);
+
+
+    </script>
+  </head>
+  <body>
+
+    <div id="map_canvas"></div>
+    <div id="content-window" style="width:19%; height:100%; float:left"></div>
+    {{=A(IMG(_src=URL('static/profiles',profileString), _alt="My Logo", _width=1000), _href=URL('static/profiles',profileString), _target="_blank")}}
+   
+    <br></br>
+
+  </body>
+</html>
+
+{{=form4}}
+{{=form5}}
+{{=form6}}
+{{=form7}}
+{{=form8}}
+{{=form9}}
+
